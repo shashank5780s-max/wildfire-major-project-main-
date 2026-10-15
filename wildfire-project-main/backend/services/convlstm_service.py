@@ -6,101 +6,51 @@ import torch.nn as nn
 import numpy as np
 import matplotlib.pyplot as plt
 
+
 class ConvLSTMCell(nn.Module):
-
-    def __init__(self,input_channels,hidden_channels,kernel_size=3):
-
+    def __init__(self, input_channels=1, hidden_channels=16, kernel_size=3):
         super().__init__()
-
-        padding=kernel_size//2
-
-        self.hidden_channels=hidden_channels
-
-        self.conv=nn.Conv2d(
-            input_channels+hidden_channels,
-            4*hidden_channels,
+        self.hidden_channels = hidden_channels
+        self.gates = nn.Conv2d(
+            input_channels + hidden_channels,
+            4 * hidden_channels,
             kernel_size,
-            padding=padding
+            padding=kernel_size // 2
         )
 
-    def forward(self,x,h,c):
+    def forward(self, x, state):
+        h, c = state
+        i, f, o, g = torch.chunk(
+            self.gates(torch.cat([x, h], dim=1)), 4, dim=1
+        )
+        i, f, o = torch.sigmoid(i), torch.sigmoid(f), torch.sigmoid(o)
+        g = torch.tanh(g)
+        c = f * c + i * g
+        h = o * torch.tanh(c)
+        return h, c
 
-        combined=torch.cat([x,h],dim=1)
-
-        gates=self.conv(combined)
-
-        i,f,o,g=torch.chunk(gates,4,dim=1)
-
-        i=torch.sigmoid(i)
-        f=torch.sigmoid(f)
-        o=torch.sigmoid(o)
-        g=torch.tanh(g)
-
-        c=f*c+i*g
-
-        h=o*torch.tanh(c)
-
-        return h,c
 
 class ConvLSTM(nn.Module):
-
     def __init__(self):
-
         super().__init__()
-
-        self.hidden_channels=32
-
-        self.cell=ConvLSTMCell(
-
-            input_channels=1,
-
-            hidden_channels=self.hidden_channels
-
+        self.hidden_channels = 16
+        self.cell = ConvLSTMCell(1, self.hidden_channels)
+        self.output_layer = nn.Conv2d(
+            self.hidden_channels, 1, kernel_size=1
         )
 
-        self.output=nn.Conv2d(
 
-            self.hidden_channels,
-
-            1,
-
-            kernel_size=1
-
+    def forward(self, x):
+        batch, seq, channels, height, width = x.shape
+        hidden = x.new_zeros(
+            batch, self.hidden_channels, height, width
         )
-
-    def forward(self,x):
-
-        batch,seq,ch,h,w=x.size()
-
-        hidden=torch.zeros(
-
-            batch,
-
-            self.hidden_channels,
-
-            h,
-
-            w,
-
-            device=x.device
-
-        )
-
-        cell=torch.zeros_like(hidden)
+        cell = torch.zeros_like(hidden)
 
         for t in range(seq):
+            hidden, cell = self.cell(x[:, t], (hidden, cell))
 
-            hidden,cell=self.cell(
-
-                x[:,t],
-
-                hidden,
-
-                cell
-
-            )
-
-        return self.output(hidden)
+        return self.output_layer(hidden)
 
 class ConvLSTMService:
 
@@ -156,12 +106,12 @@ class ConvLSTMService:
         prediction_np = prediction.squeeze().cpu().numpy()
 
         os.makedirs("outputs", exist_ok=True)
-        
+
         np.save("outputs/probability_map.npy", prediction_np)
         np.save("outputs/future_mask.npy", future_mask)
-        
+
         plt.imsave("outputs/predicted_future_fire.png", future_mask, cmap="gray")
-        
+
         if thermal_images is not None and len(thermal_images) > 0:
             plt.figure(figsize=(5,5))
             plt.imshow(thermal_images[-1], cmap="inferno")
@@ -173,5 +123,5 @@ class ConvLSTMService:
             plt.axis("off")
             plt.savefig("outputs/future_fire_overlay.png", bbox_inches='tight', pad_inches=0)
             plt.close()
-            
+
         return prediction_np, future_mask

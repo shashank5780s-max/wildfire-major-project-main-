@@ -232,7 +232,7 @@ const Prediction = () => {
               id="thermal-upload"
               type="file"
               multiple
-              accept=".tif,.tiff"
+              accept= ".tif,.tiff,.jpg,.jpeg"
               style={{ display: 'none' }}
               disabled={loading}
               ref={fileInputRef}

@@ -9,3 +9,5 @@ pandas
 pydantic
 pydantic-settings
 python-multipart
+segmentation-models-pytorch
+matplotlib

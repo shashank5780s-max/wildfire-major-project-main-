@@ -1,28 +1,34 @@
+
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: 'http://localhost:8000',
-  headers: {
-    'Content-Type': 'application/json',
-  },
+  baseURL: 'http://127.0.0.1:8000',
+  timeout: 120000,
 });
 
 export const uploadImages = async (files, onUploadProgress) => {
+  if (!files || files.length !== 5) {
+    throw new Error('Please select exactly five thermal TIFF images.');
+  }
+
   const formData = new FormData();
-  files.forEach(file => formData.append('files', file));
+
+  files.forEach((file) => {
+    formData.append('files', file);
+  });
 
   const response = await api.post('/upload', formData, {
-    headers: {
-      'Content-Type': 'multipart/form-data',
-    },
     onUploadProgress,
   });
+
   return response.data;
 };
 
-export const predict = async (sequence = null) => {
-  const payload = sequence ? { sequence } : {};
-  const response = await api.post('/predict', payload);
+export const predict = async (sequence = '') => {
+  const response = await api.post('/predict', {
+    sequence: sequence || '',
+  });
+
   return response.data;
 };
 

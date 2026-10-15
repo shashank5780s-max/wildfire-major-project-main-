@@ -2,15 +2,25 @@ import os
 import rasterio
 from typing import List
 from fastapi import APIRouter, HTTPException, UploadFile, File
+from typing import Annotated
+from fastapi.openapi.utils import get_openapi
 
 router = APIRouter(prefix="/upload", tags=["upload"])
 
 UPLOAD_DIR = "uploads"
 MAX_FILE_SIZE = 50 * 1024 * 1024  # 50 MB
-ALLOWED_EXTENSIONS = {".tif", ".tiff", ".TIF", ".TIFF"}
+ALLOWED_EXTENSIONS = (".tif", ".tiff", ".jpg", ".jpeg")
 
 @router.post("")
-async def upload_files(files: List[UploadFile] = File(...)):
+async def upload_files(
+    files: Annotated[List[UploadFile], File(description="Select exactly five TIFF images")]
+):
+    for file in files:
+        if not file.filename.lower().endswith(ALLOWED_EXTENSIONS):
+            raise HTTPException(
+                status_code=400,
+                detail="Only TIFF, TIF, JPG, and JPEG images are allowed."
+            )
     # 1. Exactly five images
     if len(files) != 5:
         raise HTTPException(status_code=400, detail=f"Expected exactly 5 images, but got {len(files)}.")
@@ -23,9 +33,9 @@ async def upload_files(files: List[UploadFile] = File(...)):
     # 3. Read contents and check basic limits/extensions
     file_contents = []
     for file in files:
-        ext = os.path.splitext(file.filename)[1]
+        ext = os.path.splitext(file.filename)[1].lower()
         if ext not in ALLOWED_EXTENSIONS:
-            raise HTTPException(status_code=415, detail=f"Unsupported file type: {ext}. Only .tif and .tiff are allowed.")
+            raise HTTPException(status_code=415, detail=f"Unsupported file type: {ext}. Only .tif, .tiff, .jpg, and .jpeg are allowed.")
             
         content = await file.read()
         if len(content) > MAX_FILE_SIZE:
